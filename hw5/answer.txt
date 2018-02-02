@@ -1,0 +1,20 @@
+Homework 5
+
+12.17
+A.
+In the main thread, it directly call exit(0) right after pthread_create
+and does not wait for its peer threads to complete. Thus, the program returned
+before the new thread reach printf line.
+
+B.
+pthread_join(tid,NULL);
+
+Or
+
+pthread_exit(NULL);
+
+12.25
+The echo_cnt is thread-safe. Because it use semaphores to protect the shared variables,
+using P(&mutex) and V(&mutex) to protect the global variable byte_cnt.
+It is not reentrant. According to the definition, a reentrant should not reference any
+shared data. However, echo_cnt uses static int byte_cnt.
