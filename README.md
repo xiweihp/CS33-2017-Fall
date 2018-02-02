@@ -1,6 +1,13 @@
 # CS33-2017-Fall
 UCLA Fall 2017 CS33 with prof. Eggert
 
+
+
+
+
+Scores:
+
+
 Homework1  95/100
 Homework2 100/100 
 Homework3 100/100
