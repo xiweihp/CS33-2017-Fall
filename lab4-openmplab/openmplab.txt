@@ -1,0 +1,198 @@
+Xiwei Ma
+openMP lab
+
+1. make a new directory for this lab and untar the material:
+tar -xvf openmplab.tar
+
+2. Before start to speed up, examine the slow version functions:
+make seq
+./seq
+
+FUNC TIME : 0.470507
+TOTAL TIME : 2.190732
+
+This is the original run time.
+
+Also, preserve a copy of original func.c.
+
+
+3. What we want to do is to make FUNC TIME shorter,
+use gprof to find the 'hot spot' and determine what to speed up:
+
+make seq GPROF=1
+./seq
+gprof seq | less
+
+And got:
+
+Each sample counts as 0.01 seconds.
+  %   cumulative   self              self     total           
+ time   seconds   seconds    calls  ms/call  ms/call  name    
+ 63.72      0.35     0.35       15    23.36    25.17  func1
+ 16.38      0.44     0.09  5177344     0.00     0.00  rand2
+  7.28      0.48     0.04        1    40.05   113.06  addSeed
+  5.46      0.51     0.03                             sequence
+  1.82      0.52     0.01   983042     0.00     0.00  round
+  1.82      0.53     0.01       15     0.67     0.67  func2
+  1.82      0.54     0.01        1    10.01    10.01  imdilateDisk
+  1.82      0.55     0.01                             filter
+  0.00      0.55     0.00   491520     0.00     0.00  findIndexBin
+  0.00      0.55     0.00       16     0.00     0.00  dilateMatrix
+  0.00      0.55     0.00       15     0.00     0.00  func3
+  0.00      0.55     0.00       15     0.00     0.00  func4
+  0.00      0.55     0.00       15     0.00     0.00  func5
+  0.00      0.55     0.00       15     0.00     0.00  rand1
+  0.00      0.55     0.00        2     0.00     0.00  get_time
+  0.00      0.55     0.00        1     0.00     0.00  elapsed_time
+  0.00      0.55     0.00        1     0.00     0.00  fillMatrix
+  0.00      0.55     0.00        1     0.00     0.00  func0
+  0.00      0.55     0.00        1     0.00     0.00  getNeighbors
+
+We can see that clearly that the func1 make up the biggest part of total time.
+
+4. 
+emacs func.c
+
+First try to use openMP on func1.
+For each loop use omp_set_num_threads and #pragma omp parallel
+to implement parallel with private and firstprivate set.
+I set the number of threads to 32.
+
+After this first revise, use make omp to check the effect.
+make omp
+./omp
+
+Also, I try to replace repeated calculation of
+(i * Ones) and (j * 2) in the program with a single private variable
+that calculated at the beginning once.
+make omp
+./omp
+
+And the time improved to:
+
+FUNC TIME : 0.233149
+TOTAL TIME : 2.054835
+
+I then tried to find a better improvement
+by varying the number of threads.
+I tried to change it to 28, and the time became:
+
+FUNC TIME : 0.092107
+TOTAL TIME : 1.892115
+
+It took shorter time!!
+
+Then use
+
+gprof omp | less
+
+to see what we gonna do next:
+
+Each sample counts as 0.01 seconds.
+  %   cumulative   self              self     total           
+ time   seconds   seconds    calls  ms/call  ms/call  name    
+ 85.11      0.51     0.51  4194308     0.00     0.00  filter
+ 10.01      0.57     0.06   491520     0.00     0.00  func5
+  3.34      0.59     0.02        1    20.03   590.77  func0
+  1.67      0.60     0.01        1    10.01    10.01  func2
+  0.00      0.60     0.00       16     0.00     0.00  func1
+  0.00      0.60     0.00        1     0.00     0.00  func3
+
+
+5.
+According to the profiling, we should next imporve func5.
+Similarly, use openMP in loops in func5. And use private variable to store
+the repeated calculation.
+
+Now, the time used is even shorter:
+
+FUNC TIME : 0.057676
+TOTAL TIME : 1.837650
+
+
+And profile became:
+
+Each sample counts as 0.01 seconds.
+  %   cumulative   self              self     total           
+ time   seconds   seconds    calls  ms/call  ms/call  name    
+ 90.12      0.54     0.54        6    90.12    95.12  filter
+  5.01      0.57     0.03   491520     0.00     0.00  func3
+  3.34      0.59     0.02                             func1
+  1.67      0.60     0.01                             func2
+  0.00      0.60     0.00        1     0.00     0.00  func0
+
+6.
+Add openMP in func3;
+Since there are accumulators, reduction keyword should be used.
+
+Now the improvement is not that obvious:
+FUNC TIME : 0.055171
+TOTAL TIME : 1.961861
+
+7.
+And then func2:
+The two loop can actually combine as one, and the repeatedly calcualted
+value weights[i] * exp(probability[i]) can be saved in a private variable.
+So the time to access the arrays can be saved.
+
+Then apply openMP to set private and firstprivate vars, and the accumulator.
+The time became:
+
+FUNC TIME : 0.033358
+TOTAL TIME : 1.813292
+
+8.
+Then optimize func0.
+Use both openMP and optimization method(save repeatedly use calculation
+result in private variable declared before loop)
+
+And the time became:
+FUNC TIME : 0.032837
+TOTAL TIME : 1.807538
+
+use:
+
+gprof omp | less
+
+and got:
+Each sample counts as 0.01 seconds.
+  %   cumulative   self              self     total           
+ time   seconds   seconds    calls  ms/call  ms/call  name    
+100.13      0.54     0.54        6    90.12    90.12  filter
+
+Thus, no more function in func.c really need improvement.
+
+9. check
+To check that your output is correct:
+
+make check
+
+output to terminal:
+gcc -o omp  -O3 -fopenmp filter.c main.c func.c util.c -lm
+cp omp filter
+./filter
+FUNC TIME : 0.032496
+TOTAL TIME : 1.810310
+diff --brief correct.txt output.txt
+
+There is no diff, so the output is correct.
+
+To check memory leak:
+make omp MTRACE=1
+./omp
+make checkmem
+
+There are some lines under Memory not freed:,
+but according to TA slides and piazza,
+these are false alarms and can be ignored.
+
+10. Calculate the speedup
+According to the formula:
+Sp = T1 / Tp
+
+Since the original FUNC TIME is 0.470507 and ultimate FUNC TIME is 0.032837
+We got the speedup:
+
+S28 = 0.470507/0.032837 = 14.34x
+
+
