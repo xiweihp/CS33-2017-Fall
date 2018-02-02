@@ -1,0 +1,61 @@
+2.82
+
+A. (x<y) == (-x>-y) 
+NOT always 1;
+example:
+x = INT_MIN, y = -1, x < y;
+-x = INT_MIN, -y = 1, -x < -y.
+
+B. ((x+y)<<4) + y-x == 17*y+15*x
+Always yields 1.
+(x+y) << 4 == (x+y)*2^4 = 16*(x + y) == 16*x + 16*y
+((x+y)<<4) + y-x == 16*x + 16*y + y - x == 17*y + 15*x
+
+C. ~x + ~y +1 == ~(x+y)
+Always yields 1.
+~x + ~y = (-1-x) +(-1-y) + 1 = -1 -x -y
+~(x+y) = -1-(x+y) = -1 -x -y
+Thus, ~x + ~y == ~(x+y)
+
+D.(ux-uy) == -(unsigned)(y-x)
+Always yields 1.
+(unsigned)(y - x) == uy - ux, since all substraction are calculated bitwise, and bits stay the same when casting.
+for unsigned value x, when x == 0, -x == x; otherwise, -x==2^32 - x.
+LHS = -(uy-ux) = 2^32 - (uy-ux)
+RHS = -(unsigned)(y-x) = 2^32 - (unsigned)(y-x) = 2^32 -(uy - ux) == LHS
+
+E. ((x>>2)<<2)<=x
+Always yields 1.
+First arithmetically shift right two bits, then shift back, cause the two least significant bits become zeros.
+For 32 bits integer x, the two least significant bits equal (x_1 * 2 + x_0), which is nonnegative.
+Thus, ((x>>2)<<2)-x <= 0, ((x>>2)<<2) <= x.
+
+F. x >> 1 == (ux >> 1) + (ux & (-1 << 31))
+There is a mix of unsigned and signed, so signed values implicitly cast to unsigned
+while bits remain the same. 
+For (-1 << 31), only the most significant bit is 1. And for x, its most significant bit depends on its sign.
+Thus, if x >= 0, (ux & (-1 << 31)) == 0; if x < 0, (ux & (-1 << 31)) == 2^31.
+
+When x >= 0, right shift is logical, since the bitswise are identical, (x >> 1 ) == (ux >>1):
+x >> 1 == (ux >> 1) + 0 == (ux >> 1) + (ux & (-1 << 31)), x>=0.
+
+When x <0, right shift for x is arithmetical, but for ux is still logical. 
+So the most significant bit of (x>>1) is 1 and that of (ux>>1)is 0 while other bits remain the same.
+Since all values should be interpreted as unsigned, (x >> 1)-(ux >> 1)==(1-0)*2^31 == 2^31.
+(x >> 1) == (ux >> 1) + 2^31 == (ux >> 1) + (ux & (-1 << 31)), x<0.
+
+G. x % 128 == (x & 127)
+NOT always yield 1.
+127: 0000 0000 0000 0000 0000 0000 0111 1111
+example: a negative x = -29. LHS = x % 128 = -29
+RHS = x & 127 = 99
+LHS != RHS
+
+
+
+
+
+
+
+
+

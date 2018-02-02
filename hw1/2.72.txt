@@ -1,0 +1,10 @@
+2.72
+A. the sizeof(val) returns a value of size_t, which is an unsigned number. When calculating in the mix of signed and unsigned expression, all signed values will cast to unsigned values. So in this situation, maxbytes implicitly casts to unsigned value and the expression is evaluated in unsigned rules. Calculation for unsigned oprands results in unsigned value, which is always nonnegative.
+Thus, the if statement is always true.
+
+B.
+void copy_int(int val, void *buf, int maxbytes) {
+
+    if (maxbytes >= 0 && maxbytes >= sizeof(val))
+            memcpy(buf, (void *) &val, sizeof(val));
+}
