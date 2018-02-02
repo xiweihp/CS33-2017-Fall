@@ -1,0 +1,40 @@
+Xiwei Ma
+Homework4-2.89
+In your answers, assume -fwrapv, and explain which of your answers require this assumption and why.
+
+A. always yields 1.
+
+Cast an integer to double will not cause overflow or rounding, 
+so the value in dx and x are actully the same. 
+If casting x to float cause x be rounded, 
+the same will happen to dx. So the value in (float)x 
+and (float)dx should always be the same.
+
+B. Require the assumption -fwrapv: Not alwasy yields 1. 
+
+In computing the int value x - y, 
+the result may overflow and be a big number(with the wrap assumption). 
+However, since doubles have more bytes, small 
+amount of overflow will not happen to double number, 
+instead the most significant bits will also preserved.
+example: x = INT_MIN, y = 1
+
+C. Always yields 1.
+Although usually addition of double is not associative, in this case,
+dx, dy, dz are also in the range of ints, so the addition of them would
+not cause rounding problems.
+
+
+D. Not Always yields 1.
+When multiplication, there may be rounding error of the double type.
+For 64-bits double, there are 52-bits for significant so multiply
+of large ints may cause the number round. Thus, the LHS will generate numbers 
+different from RHS.
+example: x = 2^30 y= (2^30 + 1), z = INT_MAX
+
+
+E. Not always yields 1.
+Consider the case 0/0.
+example: when x is zero, z is 1.
+
+Only question B needs the -fwrapv assumption.
