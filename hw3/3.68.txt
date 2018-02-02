@@ -1,0 +1,11 @@
+
+
+A = 9; B = 5
+
+From first instruction, we know int t has offset 8. Because of the alignment restrictions, so the possible value of B*1 is 5-8. Silimalry, we can found the possible value for A is 7-10. And from the final assembly code we know that the offset of long y is 184, and because it must be multiply of 8, we know A*B should be either 45 or 46. 
+So:
+A: 7~10
+B: 5~8
+A*B : 45~46
+
+Then only A = 9 and B = 5 would work.
