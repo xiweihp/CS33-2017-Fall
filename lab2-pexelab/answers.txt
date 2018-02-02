@@ -1,0 +1,192 @@
+
+A few more questions:
+
+1.
+Use gdb without disassemble the code,
+and si into the source code.
+There is a line:
+
+make_number (n=-2305843009802285360) at lisp.h:838
+
+In this line, the number n is still correct. But the following
+838	  return lisp_h_make_number (n);
+which corresponding to assembly code
+544dfc <arith_driver+284>: 4a 8d 04 a5 02 00 00 00 lea 0x2(,%r12,4),%rax
+change the answer(stores in %r14),
+
+So this line cause the number to overflow:
+0x0000000000544dfc <arith_driver+284>:	4a 8d 04 a5 02 00 00 00	lea    0x2(,%r12,4),%rax
+
+
+2.
+First jump to /u/cs/fac/eggert/src/gnu/emacs-25.2/src
+to see the source code.
+
+From data.c, can find:
+DEFVAR_LISP ("most-negative-fixnum", Vmost_negative_fixnum,
+               doc: /* The smallest value that is representable in a Lisp integer.  */);
+  Vmost_negative_fixnum = make_number (MOST_NEGATIVE_FIXNUM);
+
+Then from lisp.h, when search for it can find:
+#define MOST_NEGATIVE_FIXNUM (-1 - MOST_POSITIVE_FIXNUM)
+
+then trace MOST_POSITIVE_FIXNUM to
+#define MOST_POSITIVE_FIXNUM (EMACS_INT_MAX >> INTTYPEBITS)
+and find:
+ INTTYPEBITS = GCTYPEBITS - 1
+where 
+#define GCTYPEBITS 3
+So INTTYPEBITS = 2.
+
+So MOST_NEGATIVE_FIXNUM is (-1 - EMACS_INT_MAX >>2)
+
+As a result, try to find EMACS_INT_MAX >> 2,
+where EMACS_INT_MAX=LONG_MAX
+and the result changed to decimal would be -2305843009213693952 
+
+
+3.
+From data.c, search overflow,
+I found a line:
+overflow |= INT_MULTIPLY_WRAPV (accum, next, &accum);
+And everytime multiply calculations overflow,
+So then try to find INT_MULTIPLY_WRAPV.
+Jump to lib to find the macro.
+In the file intprops.h, search INT_MULTIPLY_WRAPV and find that in a comment,
+It states that:
+"Return 1 if the integer expressions A * B, A - B, -A, A * B, A / B,                         
+   A % B, and A << B would overflow, respectively."
+So the output is only 1 in this case.
+
+
+4.
+With the -fwrapv flag on, when overflow occurs,
+the result would wrap around and cause mathematically wrong number result.
+However, it would not report the error so the function can 
+successfully run to the end. No problem would run into.
+
+
+5.
+gdb ~eggert/bin64/bin/emacs-25.2
+Then use the command
+And recieved an error message:
+Thread 1 "emacs-25.2" received signal SIGSEGV, Segmentation fault.
+0x00007ffff16be55b in __strcpy_sse2_unaligned () from /lib64/libc.so.6
+
+Use the backtrace command to find the problem.
+(gdb) bt
+
+using the information form the top of backtrace:
+#0  0x00007ffff16be55b in __strcpy_sse2_unaligned () from /lib64/libc.so.6
+So set a breakpoint here:
+(gdb) b __strcpy_sse2_unaligned
+
+And then run the program
+(gdb)r
+It hit the breakpoint as expected:
+Thread 1 "emacs-25.2" hit Breakpoint 1, 0x00007ffff16be3c0 in __strcpy_sse2_unaligned () from /lib64/libc.so.6
+
+Use the command:
+(gdb) disas __strcpy_sse2_unaligned
+to check the format of the the function crushed.
+To find the exact place cause the problem in the source code,
+still need to step in the program.
+
+(gdb) si
+0x00007ffff16be3c3 in __strcpy_sse2_unaligned () from /lib64/libc.so.6
+(gdb) 
+0x00007ffff16be3c6 in __strcpy_sse2_unaligned () from /lib64/libc.so.6
+to get the infomation of assembly code,
+(gdb) set disassemble-next-line on
+And then,
+Continully repeat si
+
+However, I found this time the function works well and return quickly.
+So I used command continue to jump to the next breakpoint, 
+where might be the real place the crush occurs.
+
+(gdb) c
+Continuing.
+
+Thread 1 "emacs-25.2" hit Breakpoint 1, 0x00007ffff16be3c0 in __strcpy_sse2_unaligned ()
+   from /lib64/libc.so.6
+=> 0x00007ffff16be3c0 <__strcpy_sse2_unaligned+0>:	48 89 f1	mov    %rsi,%rcx
+
+Similarly,  
+I stepped into the function.
+
+Output:
+-----------------------------------------------------------------------
+(gdb) s
+Single stepping until exit from function __strcpy_sse2_unaligned,
+which has no line number information.
+emacs_setenv_TZ (tzstring=<optimized out>) at editfns.c:2439
+2439		  if (new_tzvalbuf
+=> 0x0000000000553272 <emacs_setenv_TZ+66>:	49 39 dc	cmp    %rbx,%r12
+   0x0000000000553275 <emacs_setenv_TZ+69>:	7f 08 jg     0x55327f <emacs_setenv_TZ+79>
+(gdb) s
+2454        xputenv (tzval);
+=> 0x0000000000553277 <emacs_setenv_TZ+71>:	48 89 ef	mov    %rbp,%rdi
+   0x000000000055327a <emacs_setenv_TZ+74>:	e8 61 c0 fe ff	callq  0x53f2e0 <xputenv>
+(gdb) 
+xputenv (string=string@entry=0x149e190 "TZ=", 'X' <repeats 197 times>...) at alloc.c:1028
+1028	{
+=> 0x000000000053f2e0 <xputenv+0>:	48 83 ec 08	sub    $0x8,%rsp
+(gdb) 
+1029    if (putenv ((char *) string) != 0)
+=> 0x000000000053f2e4 <xputenv+4>:   e8 87 86 ed ff	callq  0x417970 <putenv@plt>
+   0x000000000053f2e9 <xputenv+9>:   85 c0 test   %eax,%eax
+   0x000000000053f2eb <xputenv+11>:  75 05 jne    0x53f2f2 <xputenv+18>
+... ... ...
+
+... ... ...
+
+... ... ...
+
+(gdb) 
+2428        strcpy (tzval + tzeqlen, tzstring);
+=> 0x0000000000553266 <emacs_setenv_TZ+54>:	48 8d 7d 03	lea    0x3(%rbp),%rdi
+   0x000000000055326a <emacs_setenv_TZ+58>:	4c 89 ee mov    %r13,%rsi
+   0x000000000055326d <emacs_setenv_TZ+61>:	e8 7e 21 ec ff	callq  0x4153f0 <strcpy@plt>
+(gdb) 
+
+Thread 1 "emacs-25.2" hit Breakpoint 1, 0x00007ffff16be3c0 in __strcpy_sse2_unaligned ()
+   from /lib64/libc.so.6
+=> 0x00007ffff16be3c0 <__strcpy_sse2_unaligned+0>:	48 89 f1	mov    %rsi,%rcx
+(gdb) 
+Single stepping until exit from function __strcpy_sse2_unaligned,
+which has no line number information.
+
+Thread 1 "emacs-25.2" received signal SIGSEGV, Segmentation fault.
+0x00007ffff16be55b in __strcpy_sse2_unaligned () from /lib64/libc.so.6
+=> 0x00007ffff16be55b <__strcpy_sse2_unaligned+411>:  f3 0f 7f 7f f0	movdqu %xmm7,-0x10(%rdi)
+---------------------------------------------------------------
+
+From the output, when another breakpoint was hit and the same segmentation fault
+was met,
+it stopped right at the line:
+
+0x00007ffff16be55b <__strcpy_sse2_unaligned+411>:  f3 0f 7f 7f f0    movdqu %xmm7,-0x10(%rd
+i)
+
+To get more information, look at the register:
+(gdb) info register
+And I got:
+rax            0x149e193	21619091
+rbx            0x3d5		981
+rcx            0x70		112
+rdx            0x0		0
+rsi            0x14a2f80	21639040
+rdi            0x14a300a	21639178
+rbp            0x149e190	0x149e190
+rsp            0x7fffffffc4e8	0x7fffffffc4e8
+r8             0x149e4cc	21619916
+r9             0x7ffff17761b0	140737244520880
+...
+..
+
+The error here is the address stores in registers, 1st argument,
+cause the segmentation error, might because it tried to revise previous program memory and cause the program crush.
+
+So when running the program,
+When strcpy is used in setenv, this problem cause Emacs crush.

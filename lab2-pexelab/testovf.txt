@@ -1,0 +1,61 @@
+
+Examine integer overflow handling
+
+1.
+for -O2 option, output is:
+xorl	%eax, %eax
+ret
+
+The program only contain a simple assemly code that 
+will always return 0.
+Because the number 9223372036854775807 is
+actually the decimal value of LONG_MAX, so 
+this verison of instruction assume every positive long n add
+with LONG_MAX will result in undefined behavior and count as 0.
+
+
+2.
+for -O2 -fwrapv, assembly code is:
+movabsq	$9223372036854775807, %rax
+addq      %rdi, %rax
+cmpq      %rdi, %rax
+setl      %al
+ret
+
+This version of code actully just translate the
+instructions exactly from the C code:
+First save the value of LONG_MAX into register rax,
+then add 1st argument long n,
+then compare with the itself n,
+and save the result to return.
+
+Compared with first one, this code enables wrap and 
+overflow will not cause undefined behavior but a arithmetically wrong number instead.
+
+
+3.
+for -O2 -fsanitize=undefined, the code is:
+    	pushq       %rbp
+    	pushq	    %rbx
+    	movabsq	    $9223372036854775807, %rdx
+    	movq	    %rdi, %rbp
+    	movq	    %rdi, %rbx
+    	subq	    $8, %rsp
+    	addq	    %rdx, %rbp
+    	jo	    .L6
+.L2:
+	cmpq	%rbx, %rbp
+	setl	%al
+	addq	$8, %rsp
+	popq		    %rbx
+	popq		    %rbp
+	Ret
+.L6:
+	movq	%rdi, %rsi
+	movl	$.Lubsan_data0, %edi
+	call	__ubsan_handle_add_overflow
+	jmp	.L2
+
+The program call a new function __ubsan_handle_add_overflow when 
+the overflow flag is on. And then return an answer by comparing
+n and the the added value. 

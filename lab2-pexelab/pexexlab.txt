@@ -1,0 +1,150 @@
+Xiwei Ma
+PEXEX LAB
+
+emacs pexexlab.txt
+//create this log
+
+
+Gather instruction traces
+1. login into lnxsrv09
+PATH=/usr/local/cs/bin:$PATH
+//update the path
+use the executable ~eggert/bin64/bin/emacs-25.2 to trace:
+gdb ~eggert/bin64/bin/emacs-25.2
+
+2. Then try to use the command in gdb:
+(gdb) r -batch -eval '(print (* 1250284240 -1844255039))'
+output is pretty normal, and the number calculated is 
+2305843008625102544 
+
+3. Set a breakpoint at which we are going to check:
+(gdb) b Ftimes
+
+4. To take a deeper look into every machine instruction:
+disassemble next source line when execution stops, use command:
+(gdb) set disassemble-next-line on
+
+5.
+Now run again with breakpoint and disassembler set:
+(gdb) r -batch -eval '(print (* 1250284240 -1844255039))'
+output is:
+Starting program: /u/cs/fac/eggert/bin64/bin/emacs-25.2 emacs -Q -batch -eval '(print (* 1250284240 -1844255039))'
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib64/libthread_db.so.1".
+[New Thread 0x7fffe40d2700 (LWP 473)]
+
+Breakpoint 1, Ftimes (nargs=2, args=0x7fffffffd620) at data.c:2815
+2815	   {
+=> 0x0000000000544fb0 <Ftimes+0>:	48 89 f2	mov    %rsi,%rdx
+
+copy and paste this line into trace file.
+
+6.
+To also keep track of funtion called by Ftimes,
+step into the next instruction use stepi:
+(gdb) si
+
+Then use the command:
+(gdb) info register
+to check the value of the registers and keep track on what has been changed.
+Look at the register that involved in the assembly code.
+
+copy and paste each line of the output to trace.tr(use emacs trace.tr)
+add the information of changed register or memory,
+
+7.
+Repeatedly use commands in step6.
+Or when specific smaller register is required, use
+(gdb) info register $eax
+
+8.
+When the line with ret appears,
+stop the porcess. The function is end.
+
+9.
+Edit the format of the trace file as reqired.
+I worte a bash program to delete redundant part using sed:
+#!/bin/bash                                                                                  
+sed -r 's/.{12}//'  |
+//delete the leading 0x and 0
+sed 's/<.*>://g' |
+//delete function name in <>:
+sed 's/\s*\s/\t/g'
+//replace spaces with tab
+--------------------------------------------
+And manually changed some tabs to spaces
+
+
+Examine integer overflow handling
+1. 
+gcc -O2 -S test.c
+//create the assembly-language files
+mv test.s test1.s
+//rename the resulting .s file
+//so that the file of next command will not overwrite
+
+2.
+gcc -O2 -fwrapv -S test.c
+mv test.s test2.s
+//rename the file again
+
+3.
+gcc -O2 -fsanitize=undefined -S test.c
+mv test.s test3.s
+//use the third command
+
+(have to upgrade gcc to new version first;
+using the command:
+export PATH="/usr/local/cs/bin:$PATH")
+
+4.
+cat test1.s
+cat test2.s
+cat test3.s
+
+print files to compare
+
+5.
+test1.s://-O2
+	xorl	%eax, %eax
+	ret
+test2.s://-O2 -fwrapv
+	movabsq	$9223372036854775807, %rax
+	addq		      %rdi, %rax
+	cmpq		      %rdi, %rax
+	setl		      %al
+	ret
+test3.s://-O2 -fsanitize=undefined
+	 pushq	%rbp
+	 pushq	  %rbx
+	 .cfi_def_cfa_offset 24
+	 .cfi_offset 3, -24
+	 movabsq	  $9223372036854775807, %rdx
+	 movq	  %rdi, %rbp
+	 movq	  %rdi, %rbx
+	 subq	  $8, %rsp
+	 .cfi_def_cfa_offset 32
+	 addq		  %rdx, %rbp
+	 jo		  .L6
+.L2:
+	cmpq	%rbx, %rbp
+	setl	%al
+	addq	$8, %rsp
+	.cfi_remember_state
+	.cfi_def_cfa_offset 24
+	popq		    %rbx
+	.cfi_def_cfa_offset 16
+	popq		    %rbp
+	.cfi_def_cfa_offset 8
+	ret
+.L6:
+	.cfi_restore_state
+	movq	%rdi, %rsi
+	movl	$.Lubsan_data0, %edi
+	call	__ubsan_handle_add_overflow
+	jmp	.L2
+
+
+6.
+emacs testovf.txt
+put the answer in that file.
