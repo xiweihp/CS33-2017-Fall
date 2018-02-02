@@ -1,0 +1,10 @@
+3.64
+A. 
+A[i][j][k] = xA + L * (S*T*i + T*j + k)
+
+B.
+xA + 8((2^6 +1)* i + 13*j + k)
+L=8 in this case since variables are type long;
+S*T = 2^6+1; T=13; size is L*(R*S*T)=3640
+
+R = 7; S = 5; T = 13 
