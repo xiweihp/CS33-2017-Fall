@@ -1,5 +1,6 @@
 # CS33-2017-Fall
 UCLA Fall 2017 CS33 with prof. Eggert
+https://web.cs.ucla.edu/classes/fall17/cs33/index.html
 
 -----------
 Scores:
